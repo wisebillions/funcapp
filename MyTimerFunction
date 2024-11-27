@@ -1,0 +1,35 @@
+     import logging
+     import mysql.connector
+     from azure.storage.blob import BlobServiceClient
+     import os
+     import azure.functions as func
+
+     def main(mytimer: func.TimerRequest) -> None:
+         logging.info('Python timer trigger function started')
+
+         try:
+             # Connect to MySQL Database
+             db_connection = mysql.connector.connect(
+                 host=os.getenv('MYSQL_HOST'),
+                 user=os.getenv('MYSQL_USER'),
+                 password=os.getenv('MYSQL_PASSWORD'),
+                 database=os.getenv('MYSQL_DATABASE')
+             )
+             cursor = db_connection.cursor()
+             cursor.execute("SELECT file_name, file_data FROM files WHERE condition_to_pick_files")
+             files = cursor.fetchall()
+
+             # Connect to Azure Blob Storage
+             blob_service_client = BlobServiceClient.from_connection_string(os.getenv('AZURE_STORAGE_CONNECTION_STRING'))
+             container_client = blob_service_client.get_container_client(os.getenv('AZURE_STORAGE_CONTAINER'))
+
+             for file_name, file_data in files:
+                 blob_client = container_client.get_blob_client(file_name)
+                 blob_client.upload_blob(file_data)
+
+             logging.info('Python timer trigger function finished')
+
+         except mysql.connector.Error as err:
+             logging.error(f"Error: {err}")
+         except Exception as e:
+             logging.error(f"Unexpected error: {e}")
